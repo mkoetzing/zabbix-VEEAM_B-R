@@ -17,9 +17,11 @@
 # - DiscoveryReplicaJobs
 # - DiscoveryRepo
 # - DiscoveryBackupVmsByJobs
+# - Discoverywindowsagent
 # - ExportXml
 # - JobsCount
 # - RunningJob
+# - LicenseRemaining
 #
 # Examples:
 # powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\Program Files\Zabbix Agent\scripts\zabbix_vbr_job.ps1" DiscoveryBackupJobs
@@ -42,6 +44,8 @@
 # - VmCountResultBackupSync
 # - Type
 # - NextRunTime
+# - windowsagent
+
 #
 # Examples:
 # powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\Program Files\Zabbix Agent\scripts\zabbix_vbr_job.ps1" ResultBackup "2fd246be-b32a-4c65-be3e-1ca5546ef225"
@@ -67,7 +71,11 @@ $pathxml = 'C:\Program Files\Zabbix Agent\scripts\TempXmlVeeam'
 # but if you have only daily job ajust to '-2' days.
 # ! This request can consume a lot of cpu resources, adjust carefully !
 # 
-$days = '-31'
+$days = '-1'
+#Setting for my custom alerts
+$infolimit = 3
+$warnlimit = 7
+$errorlimit = 14
 
 $ITEM = [string]$args[0]
 $ID = [string]$args[1]
@@ -97,7 +105,76 @@ function ExportXml
 	{
 		$path = "$pathxml\$name" + "temp.xml"
 		$newpath = "$pathxml\$name" + ".xml"
-		
+		if ($switch -like "vbrlicense")
+		{
+				Add-PSSnapin -Name VeeamPSSnapIn -ErrorAction SilentlyContinue
+				$connectVeeam = Connect-VBRServer
+				
+				#Pulls License info
+				$License = Get-VBRInstalledLicense
+				
+				$License | Export-Clixml $path
+				$disconnectVeeam = Disconnect-VBRServer
+                Copy-Item -Path $path -Destination $newpath
+				Remove-Item $path
+		}
+		if ($switch -like "windowsagent")
+		{
+				Add-PSSnapin -Name VeeamPSSnapIn -ErrorAction SilentlyContinue
+				$connectVeeam = Connect-VBRServer
+				$StartDate = (Get-Date).adddays(-30)
+				$agentjobs = Get-VBRComputerBackupJob 
+                Remove-Variable agentarray -ErrorAction SilentlyContinue
+                $agentarray = @()
+				ForEach ($jname in ($agentjobs | Where-Object { $_.JobEnabled -like "true" })) 
+					{
+					$infobj = New-Object System.Object
+					$infobj | Add-Member -type NoteProperty -name Name -Value $jname.name
+					$infobj | Add-Member -type NoteProperty -name Level -Value "$infolimit"
+					$infobj | Add-Member -type NoteProperty -name Count -Value ((Get-VBRComputerBackupJobSession -name $jname.name | %{$_} | Sort-Object CreationTime | Where-Object { $_.State -Like "Stopped" } | Select-Object -Last $infolimit | Where-Object { $_.Result -like "Failed" }).count)
+					if ($infobj.Level -eq $infobj.Count) 
+						{
+						$infobj | Add-Member -type NoteProperty -name passfail -Value "Fail"
+						}
+						Else 
+						{
+						$infobj | Add-Member -type NoteProperty -name passfail -Value "Pass"
+						}
+					$agentarray += $infobj
+					$warnobj = New-Object System.Object
+					$warnobj | Add-Member -type NoteProperty -name Name -Value $jname.name
+					$warnobj | Add-Member -type NoteProperty -name Level -Value "$warnlimit"
+					$warnobj | Add-Member -type NoteProperty -name Count -Value ((Get-VBRComputerBackupJobSession -name $jname.name | %{$_} | Sort-Object CreationTime | Where-Object { $_.State -Like "Stopped" } | Select-Object -Last $warnlimit | Where-Object { $_.Result -like "Failed" }).count) 
+					if ($warnobj.Level -eq $warnobj.Count) 
+						{
+						$warnobj | Add-Member -type NoteProperty -name passfail -Value "Fail"
+						}
+						Else 
+						{
+						$warnobj | Add-Member -type NoteProperty -name passfail -Value "Pass"
+						}
+					$agentarray	+= $warnobj
+					$errorobj = New-Object System.Object
+					$errorobj | Add-Member -type NoteProperty -name Name -Value $jname.name
+					$errorobj | Add-Member -type NoteProperty -name Level -Value "$errorlimit"
+					$errorobj | Add-Member -type NoteProperty -name Count -Value ((Get-VBRComputerBackupJobSession -name $jname.name | %{$_} | Sort-Object CreationTime | Where-Object { $_.State -Like "Stopped" } |Select-Object -Last $errorlimit | Where-Object { $_.Result -like "Failed" }).count) 
+					if ($errorobj.Level -eq $errorobj.Count) 
+						{
+						$errorobj | Add-Member -type NoteProperty -name passfail -Value "Fail"
+						}
+						Else 
+						{
+						$errorobj | Add-Member -type NoteProperty -name passfail -Value "Pass"
+						}
+					$agentarray += $errorobj
+					
+					}
+                $agentarray | Export-Clixml $path
+                $disconnectVeeam = Disconnect-VBRServer
+                Copy-Item -Path $path -Destination $newpath
+				Remove-Item $path
+
+		}	
 		if ($switch -like "normal")
 		{
 			[System.DateTime]$Date = (Get-Date).adddays($days) #.ToString('dd/MM/yyyy HH:mm:ss')
@@ -300,7 +377,13 @@ switch ($ITEM)
 		$query = $xml1 | Where-Object { $_.IsScheduleEnabled -eq "true" -and ($_.JobType -like "Backup" -or $_.JobType -like "EpAgentBackup") } | Select-Object @{ N = "JOBID"; E = { $_.ID } }, @{ N = "JOBNAME"; E = { $_.NAME } }
 		$query | ConvertTo-ZabbixDiscoveryJson JOBNAME, JOBID
 	}
-	
+
+	"Discoverywindowsagent" {
+		$xml1 = ImportXml -item backupjob
+		$query = $xml1 | Where-Object { $_.IsScheduleEnabled -eq "true" -and $_.TypeToString -like "Windows Agent Backup" } | Select-Object @{ N = "JOBID"; E = { $_.ID } }, @{ N = "JOBNAME"; E = { $_.NAME } }
+		$query | ConvertTo-ZabbixDiscoveryJson JOBNAME, JOBID
+	}
+
 	"DiscoveryBackupSyncJobs" {
 		$xml1 = ImportXml -item backupjob
 		$query = $xml1 | Where-Object { $_.IsScheduleEnabled -eq "true" -and $_.JobType -like "BackupSync" } | Select-Object @{ N = "JOBBSID"; E = { $_.ID } }, @{ N = "JOBBSNAME"; E = { $_.NAME } }
@@ -353,14 +436,21 @@ switch ($ITEM)
 			$job = ExportXml -command "[Veeam.Backup.Core.CBackupSession]::GetAll()" -name backupsession -switch normal -options true
 			$job0 = ExportXml -command "[Veeam.Backup.Core.CBackupJob]::GetAll()" -name backupjob -switch normal
 			$job1 = ExportXml -command Get-VBRTapeJob -name backuptape -switch normal
-			$job2 = ExportXml -command Get-VBREPJob -name backupendpoint -switch normal
+			$job2 = ExportXml -command Get-VBRComputerBackupJob -name backupendpoint -switch normal
 			$job3 = ExportXml -command "[Veeam.Backup.Core.CBackupJob]::GetAll()" -name backupvmbyjob -switch byvm -type Backup
 			$job4 = ExportXml -command "[Veeam.Backup.Core.CBackupJob]::GetAll()" -name backupsyncvmbyjob -switch byvm -type BackupSync
 			$job5 = ExportXml -name backuptaskswithretry -switch bytaskswithretry
+			$job6 = ExportXml -name windowsagent -switch windowsagent
+			$job7 = ExportXml -name vbrlicense -switch vbrlicense
 			Get-Job | Wait-Job
 		}
 	}
-	
+	"LicenseRemaining"  {
+		$xml = ImportXml -item vbrlicense
+		$today=(Get-Date)
+		$LicenseDate=[datetime]($xml | Select-Object Expirationdate | Format-table -HideTableHeaders | Out-String)
+		(New-TimeSpan -Start $today -End $LicenseDate | Select-Object Days | Ft -HideTableHeaders | Out-String).Tostring() -replace '\s',''
+		}
 	"ResultBackup"  {
 		$xml = ImportXml -item backuptaskswithretry
 		$query1 = $xml | Where-Object { $_.jobId -like "$ID" } | Sort-Object JobStart -Descending | Select-Object -First 1
@@ -375,6 +465,20 @@ switch ($ITEM)
 			$query4 = "$query3" | VeeamStatusReplace
 			write-output "$query4"
 		}
+	}
+	"WindowsAgent"  {
+		$xml = ImportXml -item windowsagent
+		$query1 = $xml | Where-Object { $_.Name -like "$ID" } | Where-Object { $_.Level -like "$ID0" } | Select-Object -First 1
+		$query2 = $query1.passfail
+		if ( $query2 -like "Fail" )
+			{
+			write-output "0"
+			}
+		Else
+			{
+			write-output "1"
+			}
+			
 	}
 	
 	"ResultBackupSync"  {
@@ -635,7 +739,7 @@ switch ($ITEM)
 	
 	"RunningJob" {
 		$xml1 = ImportXml -item backupjob
-		$query = $xml1 | Where-Object { $_.isCompleted -eq $false } | Measure-Object
+		$query = $xml1 | Where-Object { $_.IsRunning -eq $true } | Measure-Object
 		if ($query)
 		{
 			[string]$query.Count
