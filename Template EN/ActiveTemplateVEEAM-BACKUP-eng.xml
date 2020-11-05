@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <zabbix_export>
-    <version>4.4</version>
-    <date>2020-01-08T10:25:30Z</date>
+    <version>5.0</version>
+    <date>2020-08-03T18:48:24Z</date>
     <groups>
         <group>
             <name>Templates</name>
@@ -9,8 +9,8 @@
     </groups>
     <templates>
         <template>
-            <template>Template VEEAM - Backup and Replication</template>
-            <name>Template VEEAM - Backup and Replication</name>
+            <template>Template VEEAM - Backup and Replication Active</template>
+            <name>Template VEEAM - Backup and Replication Active</name>
             <groups>
                 <group>
                     <name>Templates</name>
@@ -45,6 +45,9 @@
                     <name>VEEAM Discovery Mechanics</name>
                 </application>
                 <application>
+                    <name>VEEAM License</name>
+                </application>
+                <application>
                     <name>VEEAM Repository</name>
                 </application>
                 <application>
@@ -53,61 +56,69 @@
             </applications>
             <items>
                 <item>
-                    <name>Resultat Export Xml Veeam</name>
+                    <name>Remaining Veeam License Days</name>
                     <type>ZABBIX_ACTIVE</type>
-                    <key>system.run[powershell -NoProfile -ExecutionPolicy Bypass -File &quot;C:\Program Files\Zabbix Agent\scripts\zabbix_vbr_job.ps1&quot; exportxml,nowait]</key>
-                    <delay>15m</delay>
-                    <history>5d</history>
-                    <trends>15d</trends>
+                    <key>vbr[&quot;LicenseRemaining&quot;]</key>
+                    <delay>24h</delay>
+                    <value_type>FLOAT</value_type>
+                    <units>Days</units>
+                    <description>Remaining days on rental license</description>
                     <applications>
                         <application>
-                            <name>VEEAM Discovery Mechanics</name>
+                            <name>VEEAM License</name>
                         </application>
                     </applications>
-                    <valuemap>
-                        <name>vbrtaskresult</name>
-                    </valuemap>
-                    <request_method>POST</request_method>
                     <triggers>
                         <trigger>
-                            <expression>{last()}&lt;1</expression>
-                            <name>Export XML Veeam Erreur</name>
+                            <expression>{last()}&lt;7</expression>
+                            <name>Less than 7 Days left on Veeam Rental License</name>
+                            <priority>HIGH</priority>
+                        </trigger>
+                        <trigger>
+                            <expression>{last()}&lt;15</expression>
+                            <name>Less than 15 Days left on Veeam Rental License</name>
+                            <priority>AVERAGE</priority>
+                        </trigger>
+                        <trigger>
+                            <expression>{last()}&lt;30</expression>
+                            <name>Less than 30 Days left on Veeam Rental License</name>
                             <priority>WARNING</priority>
                         </trigger>
                     </triggers>
                 </item>
                 <item>
-                    <name>Nombre de travaux actif (s)</name>
+                    <name>Number of active jobs</name>
+                    <type>ZABBIX_ACTIVE</type>
                     <key>vbr[&quot;RunningJob&quot;]</key>
-                    <delay>5m</delay>
-                    <history>1w</history>
+                    <delay>300</delay>
+                    <history>7d</history>
                     <units>job(s)</units>
                     <applications>
                         <application>
                             <name>VEEAM Backup &amp; Recovery - Backup Job(s)</name>
                         </application>
                     </applications>
-                    <request_method>POST</request_method>
                 </item>
                 <item>
-                    <name>Nombre de travaux (Total)</name>
+                    <name>Number of jobs (Total)</name>
+                    <type>ZABBIX_ACTIVE</type>
                     <key>vbr[JobsCount]</key>
-                    <delay>1h</delay>
-                    <history>1w</history>
+                    <delay>3600</delay>
+                    <history>7d</history>
                     <units>job(s)</units>
                     <applications>
                         <application>
                             <name>VEEAM Backup &amp; Recovery - Backup Job(s)</name>
                         </application>
                     </applications>
-                    <request_method>POST</request_method>
                 </item>
             </items>
             <discovery_rules>
                 <discovery_rule>
                     <name>VEEAM Services</name>
+                    <type>ZABBIX_ACTIVE</type>
                     <key>service.discovery</key>
-                    <delay>1h</delay>
+                    <delay>3600</delay>
                     <filter>
                         <conditions>
                             <condition>
@@ -120,6 +131,7 @@
                     <item_prototypes>
                         <item_prototype>
                             <name>Status {#SERVICE.DISPLAYNAME}</name>
+                            <type>ZABBIX_ACTIVE</type>
                             <key>service.info[{#SERVICE.NAME},state]</key>
                             <delay>60</delay>
                             <applications>
@@ -130,51 +142,39 @@
                             <valuemap>
                                 <name>Windows service state</name>
                             </valuemap>
-                            <request_method>POST</request_method>
                             <trigger_prototypes>
                                 <trigger_prototype>
                                     <expression>{min(#3)}&lt;&gt;0</expression>
-                                    <name>{#SERVICE.DISPLAYNAME} n'est pas en cours d'exécution (type de démarrage {#SERVICE.STARTUPNAME})</name>
+                                    <name>{#SERVICE.DISPLAYNAME}</name>
                                     <priority>AVERAGE</priority>
+                                    <description>{#SERVICE.DISPLAYNAME} is not running &#13;
+(start type {#SERVICE.STARTUPNAME})</description>
                                 </trigger_prototype>
                             </trigger_prototypes>
                         </item_prototype>
                     </item_prototypes>
-                    <request_method>POST</request_method>
                 </discovery_rule>
                 <discovery_rule>
                     <name>VEEAM Agent Jobs</name>
+                    <type>ZABBIX_ACTIVE</type>
                     <key>vbr[&quot;DiscoveryAgentJobs&quot;]</key>
-                    <delay>1h</delay>
+                    <delay>3600</delay>
                     <status>DISABLED</status>
                     <lifetime>1d</lifetime>
-                    <item_prototypes>
-                        <item_prototype>
-                            <name>Resultat Backup {#JOBAGENTNAME}</name>
-                            <key>vbr[ResultAgentBackup,{#JOBAGENTID}]</key>
-                            <delay>10m</delay>
-                            <applications>
-                                <application>
-                                    <name>VEEAM Backup &amp; Recovery - Agent Job(s)</name>
-                                </application>
-                            </applications>
-                            <valuemap>
-                                <name>vbrJobResult</name>
-                            </valuemap>
-                        </item_prototype>
-                    </item_prototypes>
                 </discovery_rule>
                 <discovery_rule>
                     <name>VEEAM Backup Jobs</name>
+                    <type>ZABBIX_ACTIVE</type>
                     <key>vbr[&quot;DiscoveryBackupJobs&quot;]</key>
-                    <delay>1h</delay>
+                    <delay>3600</delay>
                     <lifetime>1d</lifetime>
                     <item_prototypes>
                         <item_prototype>
-                            <name>Taille exclue dans le travail {#JOBNAME}</name>
+                            <name>Excluded size in job {#JOBNAME}</name>
+                            <type>ZABBIX_ACTIVE</type>
                             <key>vbr[ExcludedSize,{#JOBID}]</key>
-                            <delay>1h</delay>
-                            <history>1w</history>
+                            <delay>3600</delay>
+                            <history>7d</history>
                             <status>DISABLED</status>
                             <units>bytes</units>
                             <applications>
@@ -182,13 +182,13 @@
                                     <name>VEEAM Backup &amp; Recovery - Backup Job(s)</name>
                                 </application>
                             </applications>
-                            <request_method>POST</request_method>
                         </item_prototype>
                         <item_prototype>
-                            <name>Taille inclue dans le travail {#JOBNAME}</name>
+                            <name>Included size in the job : {#JOBNAME}</name>
+                            <type>ZABBIX_ACTIVE</type>
                             <key>vbr[IncludedSize,{#JOBID}]</key>
-                            <delay>1h</delay>
-                            <history>1w</history>
+                            <delay>3600</delay>
+                            <history>7d</history>
                             <status>DISABLED</status>
                             <units>bytes</units>
                             <applications>
@@ -196,12 +196,12 @@
                                     <name>VEEAM Backup &amp; Recovery - Backup Job(s)</name>
                                 </application>
                             </applications>
-                            <request_method>POST</request_method>
                         </item_prototype>
                         <item_prototype>
-                            <name>Dernière fin de tâche {#JOBNAME}</name>
+                            <name>Last End Time Job : {#JOBNAME}</name>
+                            <type>ZABBIX_ACTIVE</type>
                             <key>vbr[LastEndTime,{#JOBID}]</key>
-                            <delay>2h</delay>
+                            <delay>3600</delay>
                             <units>unixtime</units>
                             <applications>
                                 <application>
@@ -210,9 +210,10 @@
                             </applications>
                         </item_prototype>
                         <item_prototype>
-                            <name>Dernier lancement tâche {#JOBNAME}</name>
+                            <name>Last Run Time Job : {#JOBNAME}</name>
+                            <type>ZABBIX_ACTIVE</type>
                             <key>vbr[LastRunTime,{#JOBID}]</key>
-                            <delay>2h</delay>
+                            <delay>3600</delay>
                             <units>unixtime</units>
                             <applications>
                                 <application>
@@ -221,9 +222,10 @@
                             </applications>
                         </item_prototype>
                         <item_prototype>
-                            <name>Prochain lancement tâche {#JOBNAME}</name>
+                            <name>Next Run Time Job : {#JOBNAME}</name>
+                            <type>ZABBIX_ACTIVE</type>
                             <key>vbr[NextRunTime,{#JOBID}]</key>
-                            <delay>2h</delay>
+                            <delay>3600</delay>
                             <trends>0</trends>
                             <value_type>TEXT</value_type>
                             <applications>
@@ -231,13 +233,12 @@
                                     <name>VEEAM Backup &amp; Recovery - Backup Job(s)</name>
                                 </application>
                             </applications>
-                            <request_method>POST</request_method>
                         </item_prototype>
                         <item_prototype>
-                            <name>Resultat Backup {#JOBNAME}</name>
+                            <name>Result backup {#JOBNAME}</name>
+                            <type>ZABBIX_ACTIVE</type>
                             <key>vbr[ResultBackup,{#JOBID}]</key>
-                            <delay>15m</delay>
-                            <history>1w</history>
+                            <delay>900</delay>
                             <applications>
                                 <application>
                                     <name>VEEAM Backup &amp; Recovery - Backup Job(s)</name>
@@ -246,33 +247,30 @@
                             <valuemap>
                                 <name>vbrJobResult</name>
                             </valuemap>
-                            <request_method>POST</request_method>
                             <trigger_prototypes>
                                 <trigger_prototype>
                                     <expression>{avg(300)}&lt;1</expression>
-                                    <name>Backup {#JOBNAME} en erreur</name>
-                                    <priority>HIGH</priority>
-                                </trigger_prototype>
-                                <trigger_prototype>
-                                    <expression>{avg(300)}&gt;0 &#13;
-and &#13;
-{avg(300)}&lt;2</expression>
-                                    <name>Backup {#JOBNAME} terminé avec Avertissement</name>
+                                    <name>Backup {#JOBNAME} Failed</name>
                                     <priority>WARNING</priority>
                                 </trigger_prototype>
                                 <trigger_prototype>
+                                    <expression>{avg(300)}&gt;0 and {avg(300)}&lt;2</expression>
+                                    <name>Backup {#JOBNAME} Warning</name>
+                                    <priority>INFO</priority>
+                                </trigger_prototype>
+                                <trigger_prototype>
                                     <expression>{nodata(7200)}=1</expression>
-                                    <name>Problème récupération données Backup Veeam</name>
-                                    <status>DISABLED</status>
+                                    <name>Veeam Backup Data Recovery Problem</name>
                                     <priority>WARNING</priority>
                                 </trigger_prototype>
                             </trigger_prototypes>
                         </item_prototype>
                         <item_prototype>
-                            <name>Statut d'exécution du travail {#JOBNAME}</name>
+                            <name>Job execution status {#JOBNAME}</name>
+                            <type>ZABBIX_ACTIVE</type>
                             <key>vbr[RunStatus,{#JOBID}]</key>
-                            <delay>15m</delay>
-                            <history>1w</history>
+                            <delay>300</delay>
+                            <history>7d</history>
                             <applications>
                                 <application>
                                     <name>VEEAM Backup &amp; Recovery - Backup Job(s)</name>
@@ -281,13 +279,13 @@ and &#13;
                             <valuemap>
                                 <name>vbrJobRunStatus</name>
                             </valuemap>
-                            <request_method>POST</request_method>
                         </item_prototype>
                         <item_prototype>
-                            <name>Type de backup {#JOBNAME}</name>
+                            <name>Type of backup {#JOBNAME}</name>
+                            <type>ZABBIX_ACTIVE</type>
                             <key>vbr[Type,{#JOBID}]</key>
-                            <delay>2h</delay>
-                            <history>1w</history>
+                            <delay>7200</delay>
+                            <history>7d</history>
                             <trends>0</trends>
                             <value_type>CHAR</value_type>
                             <applications>
@@ -295,64 +293,57 @@ and &#13;
                                     <name>VEEAM Backup &amp; Recovery - Backup Job(s)</name>
                                 </application>
                             </applications>
-                            <request_method>POST</request_method>
                         </item_prototype>
                         <item_prototype>
-                            <name>Nombre de VM dans le travail {#JOBNAME}</name>
+                            <name>Number of VMs in job : {#JOBNAME}</name>
+                            <type>ZABBIX_ACTIVE</type>
                             <key>vbr[VmCount,{#JOBNAME}]</key>
-                            <delay>1h</delay>
-                            <history>1w</history>
+                            <delay>3600</delay>
+                            <history>7d</history>
                             <units>vm(s)</units>
                             <applications>
                                 <application>
                                     <name>VEEAM Backup &amp; Recovery - Backup Job(s)</name>
                                 </application>
                             </applications>
-                            <request_method>POST</request_method>
                         </item_prototype>
                         <item_prototype>
-                            <name>Nombre Failed {#JOBNAME}</name>
+                            <name>Number of VMs Failed {#JOBNAME}</name>
+                            <type>ZABBIX_ACTIVE</type>
                             <key>vbr[VmCountResultBackup,{#JOBNAME},Failed]</key>
-                            <delay>15m</delay>
+                            <delay>900</delay>
                             <applications>
                                 <application>
                                     <name>VEEAM Backup &amp; Recovery - Backup Job(s)</name>
                                 </application>
                             </applications>
-                            <request_method>POST</request_method>
                         </item_prototype>
                         <item_prototype>
-                            <name>Nombre Warning {#JOBNAME}</name>
+                            <name>Number of VMs Warning {#JOBNAME}</name>
+                            <type>ZABBIX_ACTIVE</type>
                             <key>vbr[VmCountResultBackup,{#JOBNAME},Warning]</key>
-                            <delay>15m</delay>
+                            <delay>900</delay>
                             <applications>
                                 <application>
                                     <name>VEEAM Backup &amp; Recovery - Backup Job(s)</name>
                                 </application>
                             </applications>
-                            <request_method>POST</request_method>
                         </item_prototype>
                     </item_prototypes>
-                    <trigger_prototypes>
-                        <trigger_prototype>
-                            <expression>{Template VEEAM - Backup and Replication:vbr[RunStatus,{#JOBID}].avg(28800)}=1 and {Template VEEAM - Backup and Replication:vbr[Type,{#JOBID}].regexp(BackupSync)}=0</expression>
-                            <name>Le travail VEEAM {#JOBNAME} est toujours en cours d'exécution (8h)</name>
-                            <priority>HIGH</priority>
-                        </trigger_prototype>
-                    </trigger_prototypes>
-                    <request_method>POST</request_method>
                 </discovery_rule>
                 <discovery_rule>
                     <name>VEEAM BackupSync Jobs</name>
+                    <type>ZABBIX_ACTIVE</type>
                     <key>vbr[&quot;DiscoveryBackupSyncJobs&quot;]</key>
-                    <delay>1h</delay>
+                    <delay>3600</delay>
                     <lifetime>1d</lifetime>
                     <item_prototypes>
                         <item_prototype>
-                            <name>Taille exclue dans le travail {#JOBBSNAME}</name>
+                            <name>Excluded size in job {#JOBBSNAME}</name>
+                            <type>ZABBIX_ACTIVE</type>
                             <key>vbr[ExcludedSize,{#JOBBSID}]</key>
-                            <delay>1h</delay>
-                            <history>1w</history>
+                            <delay>3600</delay>
+                            <history>7d</history>
                             <status>DISABLED</status>
                             <units>bytes</units>
                             <applications>
@@ -360,12 +351,12 @@ and &#13;
                                     <name>VEEAM Backup &amp; Recovery - BackupSync Job(s)</name>
                                 </application>
                             </applications>
-                            <request_method>POST</request_method>
                         </item_prototype>
                         <item_prototype>
-                            <name>Taille inclue dans le travail {#JOBBSNAME}</name>
+                            <name>Included size in the job {#JOBBSNAME}</name>
+                            <type>ZABBIX_ACTIVE</type>
                             <key>vbr[IncludedSize,{#JOBBSID}]</key>
-                            <delay>1h</delay>
+                            <delay>3600</delay>
                             <status>DISABLED</status>
                             <units>bytes</units>
                             <applications>
@@ -373,12 +364,12 @@ and &#13;
                                     <name>VEEAM Backup &amp; Recovery - BackupSync Job(s)</name>
                                 </application>
                             </applications>
-                            <request_method>POST</request_method>
                         </item_prototype>
                         <item_prototype>
-                            <name>Resultat backup {#JOBBSNAME}</name>
+                            <name>Result backup {#JOBBSNAME}</name>
+                            <type>ZABBIX_ACTIVE</type>
                             <key>vbr[ResultBackupSync,{#JOBBSID}]</key>
-                            <delay>15m</delay>
+                            <delay>900</delay>
                             <applications>
                                 <application>
                                     <name>VEEAM Backup &amp; Recovery - BackupSync Job(s)</name>
@@ -387,33 +378,30 @@ and &#13;
                             <valuemap>
                                 <name>vbrJobResult</name>
                             </valuemap>
-                            <request_method>POST</request_method>
                             <trigger_prototypes>
                                 <trigger_prototype>
                                     <expression>{avg(300)}&lt;1</expression>
-                                    <name>Backup {#JOBBSNAME} en erreur</name>
+                                    <name>Backup {#JOBBSNAME} Failed</name>
                                     <priority>HIGH</priority>
                                 </trigger_prototype>
                                 <trigger_prototype>
-                                    <expression>{avg(300)}&gt;0&#13;
-and&#13;
-{avg(300)}&lt;2</expression>
-                                    <name>Backup {#JOBBSNAME} terminé avec Avertissement</name>
-                                    <priority>WARNING</priority>
+                                    <expression>{avg(300)}&gt;0 and {avg(300)}&lt;2</expression>
+                                    <name>Backup {#JOBBSNAME} Warning</name>
+                                    <priority>AVERAGE</priority>
                                 </trigger_prototype>
                                 <trigger_prototype>
                                     <expression>{nodata(7200)}=1</expression>
-                                    <name>Problème récupération données Backup Veeam</name>
-                                    <status>DISABLED</status>
+                                    <name>Veeam Backup Data Recovery Problem</name>
                                     <priority>WARNING</priority>
                                 </trigger_prototype>
                             </trigger_prototypes>
                         </item_prototype>
                         <item_prototype>
-                            <name>Statut d'exécution du travail {#JOBBSNAME}</name>
+                            <name>Job execution status {#JOBBSNAME}</name>
+                            <type>ZABBIX_ACTIVE</type>
                             <key>vbr[RunStatus,{#JOBBSID}]</key>
-                            <delay>15m</delay>
-                            <history>1w</history>
+                            <delay>900</delay>
+                            <history>7d</history>
                             <applications>
                                 <application>
                                     <name>VEEAM Backup &amp; Recovery - BackupSync Job(s)</name>
@@ -422,13 +410,13 @@ and&#13;
                             <valuemap>
                                 <name>vbrJobRunStatus</name>
                             </valuemap>
-                            <request_method>POST</request_method>
                         </item_prototype>
                         <item_prototype>
-                            <name>Type de backup {#JOBBSNAME}</name>
+                            <name>Type of backup {#JOBBSNAME}</name>
+                            <type>ZABBIX_ACTIVE</type>
                             <key>vbr[Type,{#JOBBSID}]</key>
-                            <delay>2h</delay>
-                            <history>1w</history>
+                            <delay>7200</delay>
+                            <history>7d</history>
                             <trends>0</trends>
                             <value_type>CHAR</value_type>
                             <applications>
@@ -436,56 +424,56 @@ and&#13;
                                     <name>VEEAM Backup &amp; Recovery - BackupSync Job(s)</name>
                                 </application>
                             </applications>
-                            <request_method>POST</request_method>
                         </item_prototype>
                         <item_prototype>
-                            <name>Nombre de VM dans le travail {#JOBBSNAME}</name>
+                            <name>Number of VMs in job {#JOBBSNAME}</name>
+                            <type>ZABBIX_ACTIVE</type>
                             <key>vbr[VmCount,{#JOBBSNAME}]</key>
-                            <delay>1h</delay>
-                            <history>1w</history>
+                            <delay>3600</delay>
+                            <history>7d</history>
                             <units>vm(s)</units>
                             <applications>
                                 <application>
                                     <name>VEEAM Backup &amp; Recovery - BackupSync Job(s)</name>
                                 </application>
                             </applications>
-                            <request_method>POST</request_method>
                         </item_prototype>
                         <item_prototype>
-                            <name>Nombre Failed {#JOBBSNAME}</name>
+                            <name>Number of VMs Failed {#JOBBSNAME}</name>
+                            <type>ZABBIX_ACTIVE</type>
                             <key>vbr[VmCountResultBackupSync,{#JOBBSNAME},Failed]</key>
-                            <delay>15m</delay>
+                            <delay>900</delay>
                             <applications>
                                 <application>
                                     <name>VEEAM Backup &amp; Recovery - BackupSync Job(s)</name>
                                 </application>
                             </applications>
-                            <request_method>POST</request_method>
                         </item_prototype>
                         <item_prototype>
-                            <name>Nombre Warning {#JOBBSNAME}</name>
+                            <name>Number of VMs Warning {#JOBBSNAME}</name>
+                            <type>ZABBIX_ACTIVE</type>
                             <key>vbr[VmCountResultBackupSync,{#JOBBSNAME},Warning]</key>
-                            <delay>15m</delay>
+                            <delay>900</delay>
                             <applications>
                                 <application>
                                     <name>VEEAM Backup &amp; Recovery - BackupSync Job(s)</name>
                                 </application>
                             </applications>
-                            <request_method>POST</request_method>
                         </item_prototype>
                     </item_prototypes>
-                    <request_method>POST</request_method>
                 </discovery_rule>
                 <discovery_rule>
                     <name>VEEAM BackupSync By VMs</name>
+                    <type>ZABBIX_ACTIVE</type>
                     <key>vbr[&quot;DiscoveryBackupVmsByJobs&quot;,&quot;BackupSync&quot;]</key>
-                    <delay>1h</delay>
+                    <delay>3600</delay>
                     <lifetime>1d</lifetime>
                     <item_prototypes>
                         <item_prototype>
-                            <name>Job {#JOBNAME} - Resultat {#JOBVMNAME}</name>
+                            <name>Job {#JOBNAME} - Result {#JOBVMNAME}</name>
+                            <type>ZABBIX_ACTIVE</type>
                             <key>vbr[VMResultBackupSync,&quot;{#JOBVMNAME}&quot;,&quot;{#JOBNAME}&quot;]</key>
-                            <delay>20m</delay>
+                            <delay>900</delay>
                             <applications>
                                 <application>
                                     <name>VEEAM Backup &amp; Recovery - BackupSync Job(s) By VMs</name>
@@ -494,21 +482,30 @@ and&#13;
                             <valuemap>
                                 <name>vbrJobResult</name>
                             </valuemap>
-                            <request_method>POST</request_method>
+                            <trigger_prototypes>
+                                <trigger_prototype>
+                                    <expression>{count(7d,2,eq)}=0 and&#13;
+{count(7d,1,eq)}=0</expression>
+                                    <name>7 Days Without Backups for {#JOBVMNAME} in Job:{#JOBNAME}</name>
+                                    <priority>AVERAGE</priority>
+                                    <description>No backups have completed for {#JOBVMNAME} in the last 7 days, with or without a warning.</description>
+                                </trigger_prototype>
+                            </trigger_prototypes>
                         </item_prototype>
                     </item_prototypes>
-                    <request_method>POST</request_method>
                 </discovery_rule>
                 <discovery_rule>
                     <name>VEEAM Backup By VMs</name>
+                    <type>ZABBIX_ACTIVE</type>
                     <key>vbr[&quot;DiscoveryBackupVmsByJobs&quot;]</key>
-                    <delay>1h</delay>
+                    <delay>3600</delay>
                     <lifetime>1d</lifetime>
                     <item_prototypes>
                         <item_prototype>
-                            <name>Job {#JOBNAME} - Resultat {#JOBVMNAME}</name>
+                            <name>Job {#JOBNAME} - Result {#JOBVMNAME}</name>
+                            <type>ZABBIX_ACTIVE</type>
                             <key>vbr[VMResultBackup,&quot;{#JOBVMNAME}&quot;,&quot;{#JOBNAME}&quot;]</key>
-                            <delay>20m</delay>
+                            <delay>900</delay>
                             <applications>
                                 <application>
                                     <name>VEEAM Backup &amp; Recovery - Backup Job(s) By VMs</name>
@@ -517,21 +514,44 @@ and&#13;
                             <valuemap>
                                 <name>vbrJobResult</name>
                             </valuemap>
-                            <request_method>POST</request_method>
+                            <trigger_prototypes>
+                                <trigger_prototype>
+                                    <expression>{count(4d,2,eq)}=0 and&#13;
+{count(4d,1,eq)}=0</expression>
+                                    <name>4 Days Without Backups for {#JOBVMNAME} in Job:{#JOBNAME</name>
+                                    <priority>WARNING</priority>
+                                    <description>No backups have completed for {#JOBVMNAME} in the last 4 days, with or without a warning.</description>
+                                </trigger_prototype>
+                                <trigger_prototype>
+                                    <expression>{count(7d,2,eq)}=0 and&#13;
+{count(7d,1,eq)}=0</expression>
+                                    <name>7 Days Without Backups for {#JOBVMNAME} in Job:{#JOBNAME}</name>
+                                    <priority>AVERAGE</priority>
+                                    <description>No backups have completed for {#JOBVMNAME} in the last 7 days, with or without a warning.</description>
+                                </trigger_prototype>
+                                <trigger_prototype>
+                                    <expression>{count(14d,2,eq)}=0 and&#13;
+{count(14d,1,eq)}=0</expression>
+                                    <name>14 Days Without Backups for {#JOBVMNAME} in Job:{#JOBNAME}</name>
+                                    <priority>HIGH</priority>
+                                    <description>No backups have completed for {#JOBVMNAME} in the last 14 days, with or without a warning.</description>
+                                </trigger_prototype>
+                            </trigger_prototypes>
                         </item_prototype>
                     </item_prototypes>
-                    <request_method>POST</request_method>
                 </discovery_rule>
                 <discovery_rule>
                     <name>VEEAM EndpointBackup Jobs</name>
+                    <type>ZABBIX_ACTIVE</type>
                     <key>vbr[&quot;DiscoveryEndpointJobs&quot;]</key>
-                    <delay>1h</delay>
+                    <delay>3600</delay>
                     <lifetime>1d</lifetime>
                     <item_prototypes>
                         <item_prototype>
-                            <name>Resultat backup {#JOBENDPOINTNAME}</name>
+                            <name>Result backup {#JOBENDPOINTNAME}</name>
+                            <type>ZABBIX_ACTIVE</type>
                             <key>vbr[ResultEndpoint,{#JOBENDPOINTID}]</key>
-                            <delay>10m</delay>
+                            <delay>900</delay>
                             <applications>
                                 <application>
                                     <name>VEEAM Backup &amp; Recovery - EndPoint Backup job(s)</name>
@@ -540,30 +560,29 @@ and&#13;
                             <valuemap>
                                 <name>vbrJobResult</name>
                             </valuemap>
-                            <request_method>POST</request_method>
                             <trigger_prototypes>
                                 <trigger_prototype>
                                     <expression>{avg(300)}&lt;1</expression>
-                                    <name>Backup {#JOBENDPOINTNAME} en erreur</name>
+                                    <name>Backup {#JOBENDPOINTNAME} Failed</name>
                                     <priority>HIGH</priority>
                                 </trigger_prototype>
                                 <trigger_prototype>
-                                    <expression>{avg(300)}&gt;0 and&#13;
-{avg(300)}&lt;2</expression>
-                                    <name>Backup {#JOBENDPOINTNAME} terminé avec Avertissement</name>
-                                    <priority>WARNING</priority>
+                                    <expression>{avg(300)}&gt;0 and {avg(300)}&lt;2</expression>
+                                    <name>Backup {#JOBENDPOINTNAME} Warning</name>
+                                    <priority>AVERAGE</priority>
                                 </trigger_prototype>
                                 <trigger_prototype>
                                     <expression>{nodata(7200)}=1</expression>
-                                    <name>Problème récupération données Backup Veeam</name>
+                                    <name>Veeam Backup Data Recovery Problem</name>
                                     <priority>WARNING</priority>
                                 </trigger_prototype>
                             </trigger_prototypes>
                         </item_prototype>
                         <item_prototype>
-                            <name>Statut d'exécution du travail {#JOBENDPOINTNAME}</name>
+                            <name>Job execution status {#JOBENDPOINTNAME}</name>
+                            <type>ZABBIX_ACTIVE</type>
                             <key>vbr[RunStatus,{#JOBENDPOINTID}]</key>
-                            <delay>15m</delay>
+                            <delay>900</delay>
                             <applications>
                                 <application>
                                     <name>VEEAM Backup &amp; Recovery - EndPoint Backup job(s)</name>
@@ -572,19 +591,19 @@ and&#13;
                             <valuemap>
                                 <name>vbrJobRunStatus</name>
                             </valuemap>
-                            <request_method>POST</request_method>
                             <trigger_prototypes>
                                 <trigger_prototype>
                                     <expression>{avg(28800)}=1</expression>
-                                    <name>Le travail VEEAM {#JOBENDPOINTNAME} est toujours en cours d'exécution (8h)</name>
+                                    <name>The VEEAM work {#JOBENDPOINTNAME} is still running (8h)</name>
                                     <priority>HIGH</priority>
                                 </trigger_prototype>
                             </trigger_prototypes>
                         </item_prototype>
                         <item_prototype>
-                            <name>Type de backup {#JOBENDPOINTNAME}</name>
+                            <name>Type of backup {#JOBENDPOINTNAME}</name>
+                            <type>ZABBIX_ACTIVE</type>
                             <key>vbr[Type,{#JOBENDPOINTID}]</key>
-                            <delay>2h</delay>
+                            <delay>7200</delay>
                             <trends>0</trends>
                             <value_type>CHAR</value_type>
                             <applications>
@@ -592,21 +611,21 @@ and&#13;
                                     <name>VEEAM Backup &amp; Recovery - EndPoint Backup job(s)</name>
                                 </application>
                             </applications>
-                            <request_method>POST</request_method>
                         </item_prototype>
                     </item_prototypes>
-                    <request_method>POST</request_method>
                 </discovery_rule>
                 <discovery_rule>
                     <name>VEEAM ReplicaBackup Jobs</name>
+                    <type>ZABBIX_ACTIVE</type>
                     <key>vbr[&quot;DiscoveryReplicaJobs&quot;]</key>
-                    <delay>1h</delay>
+                    <delay>3600</delay>
                     <lifetime>1d</lifetime>
                     <item_prototypes>
                         <item_prototype>
-                            <name>Resultat backup {#JOBREPLICANAME}</name>
+                            <name>Result backup {#JOBREPLICANAME}</name>
+                            <type>ZABBIX_ACTIVE</type>
                             <key>vbr[ResultReplica,{#JOBREPLICAID}]</key>
-                            <delay>15m</delay>
+                            <delay>600</delay>
                             <applications>
                                 <application>
                                     <name>VEEAM Backup &amp; Recovery - Replica Job(s)</name>
@@ -618,27 +637,26 @@ and&#13;
                             <trigger_prototypes>
                                 <trigger_prototype>
                                     <expression>{avg(300)}&lt;1</expression>
-                                    <name>Backup {#JOBREPLICANAME} en erreur</name>
+                                    <name>Backup {#JOBREPLICANAME} Failed</name>
                                     <priority>HIGH</priority>
                                 </trigger_prototype>
                                 <trigger_prototype>
-                                    <expression>{avg(300)}&gt;0&#13;
-and&#13;
-{avg(300)}&lt;2</expression>
-                                    <name>Backup {#JOBREPLICANAME} terminé avec Avertissement</name>
+                                    <expression>{avg(300)}&gt;0 and {avg(300)}&lt;2</expression>
+                                    <name>Backup {#JOBREPLICANAME} Warning</name>
                                     <priority>WARNING</priority>
                                 </trigger_prototype>
                                 <trigger_prototype>
                                     <expression>{nodata(7200)}=1</expression>
-                                    <name>Problème récupération données Backup Veeam</name>
+                                    <name>Veeam Backup Data Recovery Problem</name>
                                     <priority>WARNING</priority>
                                 </trigger_prototype>
                             </trigger_prototypes>
                         </item_prototype>
                         <item_prototype>
-                            <name>Statut d'exécution du travail {#JOBREPLICANAME}</name>
+                            <name>Job execution status {#JOBREPLICANAME}</name>
+                            <type>ZABBIX_ACTIVE</type>
                             <key>vbr[RunStatus,{#JOBREPLICAID}]</key>
-                            <delay>15m</delay>
+                            <delay>900</delay>
                             <applications>
                                 <application>
                                     <name>VEEAM Backup &amp; Recovery - Replica Job(s)</name>
@@ -649,12 +667,10 @@ and&#13;
                             </valuemap>
                         </item_prototype>
                         <item_prototype>
-                            <name>Type de backup {#JOBREPLICANAME}</name>
+                            <name>Type of backup {#JOBREPLICANAME}</name>
+                            <type>ZABBIX_ACTIVE</type>
                             <key>vbr[Type,{#JOBREPLICAID}]</key>
-                            <delay>2h</delay>
-                            <history>1w</history>
-                            <trends>0</trends>
-                            <value_type>CHAR</value_type>
+                            <delay>7200</delay>
                             <applications>
                                 <application>
                                     <name>VEEAM Backup &amp; Recovery - Replica Job(s)</name>
@@ -665,68 +681,84 @@ and&#13;
                 </discovery_rule>
                 <discovery_rule>
                     <name>VEEAM Repository</name>
+                    <type>ZABBIX_ACTIVE</type>
                     <key>vbr[&quot;DiscoveryRepo&quot;]</key>
-                    <delay>1h</delay>
-                    <lifetime>1w</lifetime>
+                    <delay>3600</delay>
+                    <lifetime>7d</lifetime>
                     <item_prototypes>
                         <item_prototype>
-                            <name>Espace total repository {#REPONAME}</name>
-                            <key>vbr[RepoCapacity,&quot;{#REPONAME}&quot;]</key>
+                            <name>{#REPONAME} Repository percent free</name>
+                            <type>ZABBIX_ACTIVE</type>
+                            <key>vbr[percent,&quot;{#REPONAME}&quot;]</key>
                             <delay>1h</delay>
-                            <units>B</units>
+                            <value_type>FLOAT</value_type>
+                            <units>Percent</units>
+                            <params>100*last(&quot;vbr[RepoFree,\&quot;{#REPONAME}\&quot;]&quot;) / last(&quot;vbr[RepoCapacity,\&quot;{#REPONAME}\&quot;]&quot;)</params>
+                            <description>Percent free space on {#REPONAME}</description>
                             <applications>
                                 <application>
                                     <name>VEEAM Repository</name>
                                 </application>
                             </applications>
-                            <request_method>POST</request_method>
+                            <trigger_prototypes>
+                                <trigger_prototype>
+                                    <expression>{last()}&lt;5</expression>
+                                    <name>{#REPONAME} is critically low on space</name>
+                                    <priority>HIGH</priority>
+                                </trigger_prototype>
+                                <trigger_prototype>
+                                    <expression>{last()}&lt;10</expression>
+                                    <name>{#REPONAME} is low on space</name>
+                                    <priority>AVERAGE</priority>
+                                </trigger_prototype>
+                            </trigger_prototypes>
                         </item_prototype>
                         <item_prototype>
-                            <name>Espace restant repository {#REPONAME}</name>
-                            <key>vbr[RepoFree,&quot;{#REPONAME}&quot;]</key>
-                            <delay>1h</delay>
+                            <name>Total repository space {#REPONAME}</name>
+                            <type>ZABBIX_ACTIVE</type>
+                            <key>vbr[RepoCapacity,&quot;{#REPONAME}&quot;]</key>
+                            <delay>3600</delay>
                             <units>B</units>
                             <applications>
                                 <application>
                                     <name>VEEAM Repository</name>
                                 </application>
                             </applications>
-                            <request_method>POST</request_method>
+                        </item_prototype>
+                        <item_prototype>
+                            <name>Remaining space repository {#REPONAME}</name>
+                            <type>ZABBIX_ACTIVE</type>
+                            <key>vbr[RepoFree,&quot;{#REPONAME}&quot;]</key>
+                            <delay>3600</delay>
+                            <units>B</units>
+                            <applications>
+                                <application>
+                                    <name>VEEAM Repository</name>
+                                </application>
+                            </applications>
                             <trigger_prototypes>
                                 <trigger_prototype>
                                     <expression>{last()}&lt;2147483648</expression>
-                                    <name>Moins de 2Gb restant sur le repository {#REPONAME}</name>
+                                    <name>Less than 2Gb remaining on the repository {#REPONAME}</name>
+                                    <status>DISABLED</status>
                                     <priority>HIGH</priority>
                                 </trigger_prototype>
                             </trigger_prototypes>
                         </item_prototype>
                     </item_prototypes>
-                    <graph_prototypes>
-                        <graph_prototype>
-                            <name>Espace restant repository {#REPONAME}</name>
-                            <graph_items>
-                                <graph_item>
-                                    <color>1A7C11</color>
-                                    <item>
-                                        <host>Template VEEAM - Backup and Replication</host>
-                                        <key>vbr[RepoFree,&quot;{#REPONAME}&quot;]</key>
-                                    </item>
-                                </graph_item>
-                            </graph_items>
-                        </graph_prototype>
-                    </graph_prototypes>
-                    <request_method>POST</request_method>
                 </discovery_rule>
                 <discovery_rule>
-                    <name>VEEAM Tape Jobs</name>
+                    <name>VEEAM Tape jobs</name>
+                    <type>ZABBIX_ACTIVE</type>
                     <key>vbr[&quot;DiscoveryTapeJobs&quot;]</key>
-                    <delay>1h</delay>
-                    <lifetime>1w</lifetime>
+                    <delay>3600</delay>
+                    <lifetime>7d</lifetime>
                     <item_prototypes>
                         <item_prototype>
-                            <name>Resultat backup {#JOBTAPENAME}</name>
+                            <name>Result backup {#JOBTAPENAME}</name>
+                            <type>ZABBIX_ACTIVE</type>
                             <key>vbr[ResultTape,{#JOBTAPEID}]</key>
-                            <delay>10m</delay>
+                            <delay>900</delay>
                             <applications>
                                 <application>
                                     <name>VEEAM Backup &amp; Recovery - Tape job(s)</name>
@@ -735,30 +767,29 @@ and&#13;
                             <valuemap>
                                 <name>vbrJobResult</name>
                             </valuemap>
-                            <request_method>POST</request_method>
                             <trigger_prototypes>
                                 <trigger_prototype>
                                     <expression>{avg(300)}&lt;1</expression>
-                                    <name>Backup {#JOBTAPENAME} en erreur</name>
+                                    <name>Backup {#JOBTAPENAME} Failed</name>
                                     <priority>HIGH</priority>
                                 </trigger_prototype>
                                 <trigger_prototype>
-                                    <expression>{avg(300)}&gt;0 and&#13;
-{avg(300)}&lt;2</expression>
-                                    <name>Backup {#JOBTAPENAME} terminé avec Avertissement</name>
-                                    <priority>WARNING</priority>
+                                    <expression>{avg(300)}&gt;0 and {avg(300)}&lt;2</expression>
+                                    <name>Backup {#JOBTAPENAME} Warning</name>
+                                    <priority>AVERAGE</priority>
                                 </trigger_prototype>
                                 <trigger_prototype>
                                     <expression>{nodata(7200)}=1</expression>
-                                    <name>Problème récupération données Backup Veeam</name>
+                                    <name>Veeam Backup Data Recovery Problem</name>
                                     <priority>WARNING</priority>
                                 </trigger_prototype>
                             </trigger_prototypes>
                         </item_prototype>
                         <item_prototype>
-                            <name>Statut d'exécution du travail {#JOBTAPENAME}</name>
+                            <name>Job execution status {#JOBTAPENAME}</name>
+                            <type>ZABBIX_ACTIVE</type>
                             <key>vbr[RunStatus,{#JOBTAPEID}]</key>
-                            <delay>15m</delay>
+                            <delay>900</delay>
                             <applications>
                                 <application>
                                     <name>VEEAM Backup &amp; Recovery - Tape job(s)</name>
@@ -767,24 +798,86 @@ and&#13;
                             <valuemap>
                                 <name>vbrJobRunStatus</name>
                             </valuemap>
-                            <request_method>POST</request_method>
                             <trigger_prototypes>
                                 <trigger_prototype>
                                     <expression>{avg(28800)}=1</expression>
-                                    <name>Le travail VEEAM {#JOBTAPENAME} est toujours en cours d'exécution (8h)</name>
+                                    <name>The VEEAM work {#JOBTAPENAME} is still running (8h)</name>
                                     <priority>HIGH</priority>
                                 </trigger_prototype>
                             </trigger_prototypes>
                         </item_prototype>
                     </item_prototypes>
-                    <request_method>POST</request_method>
+                </discovery_rule>
+                <discovery_rule>
+                    <name>VEEAM Windows Agent Jobs</name>
+                    <type>ZABBIX_ACTIVE</type>
+                    <key>vbr[&quot;Discoverywindowsagent&quot;]</key>
+                    <delay>3600</delay>
+                    <lifetime>1d</lifetime>
+                    <item_prototypes>
+                        <item_prototype>
+                            <name>Windows Agent 3 day backup history</name>
+                            <type>ZABBIX_ACTIVE</type>
+                            <key>vbr[WindowsAgent,&quot;{#JOBNAME}&quot;,3]</key>
+                            <delay>30</delay>
+                            <description>This item returns a 1 if the last 3 jobs failed</description>
+                            <applications>
+                                <application>
+                                    <name>VEEAM Backup &amp; Recovery - Agent Job(s)</name>
+                                </application>
+                            </applications>
+                            <trigger_prototypes>
+                                <trigger_prototype>
+                                    <expression>{last()}=0</expression>
+                                    <name>3 Days of backups have failed for {#JOBNAME}</name>
+                                    <priority>WARNING</priority>
+                                    <description>The last 3 days of backups have failed for {#JOBNAME}</description>
+                                </trigger_prototype>
+                            </trigger_prototypes>
+                        </item_prototype>
+                        <item_prototype>
+                            <name>Windows Agent 7 day backup history</name>
+                            <type>ZABBIX_ACTIVE</type>
+                            <key>vbr[WindowsAgent,&quot;{#JOBNAME}&quot;,7]</key>
+                            <delay>30</delay>
+                            <description>This item returns a 1 if the last 7 jobs failed</description>
+                            <applications>
+                                <application>
+                                    <name>VEEAM Backup &amp; Recovery - Agent Job(s)</name>
+                                </application>
+                            </applications>
+                            <trigger_prototypes>
+                                <trigger_prototype>
+                                    <expression>{last()}=0</expression>
+                                    <name>7 Days of backups have failed for {#JOBNAME}</name>
+                                    <priority>AVERAGE</priority>
+                                    <description>The last 7 days of backups have failed for {#JOBNAME}</description>
+                                </trigger_prototype>
+                            </trigger_prototypes>
+                        </item_prototype>
+                        <item_prototype>
+                            <name>Windows Agent 14 day backup history</name>
+                            <type>ZABBIX_ACTIVE</type>
+                            <key>vbr[WindowsAgent,&quot;{#JOBNAME}&quot;,14]</key>
+                            <delay>30</delay>
+                            <description>This item returns a 1 if the last 14 jobs failed</description>
+                            <applications>
+                                <application>
+                                    <name>VEEAM Backup &amp; Recovery - Agent Job(s)</name>
+                                </application>
+                            </applications>
+                            <trigger_prototypes>
+                                <trigger_prototype>
+                                    <expression>{last()}=0</expression>
+                                    <name>14 Days of backups have failed for {#JOBNAME}</name>
+                                    <priority>HIGH</priority>
+                                    <description>The last 14 days of backups have failed for {#JOBNAME}</description>
+                                </trigger_prototype>
+                            </trigger_prototypes>
+                        </item_prototype>
+                    </item_prototypes>
                 </discovery_rule>
             </discovery_rules>
-            <tags>
-                <tag>
-                    <tag>VEEAM</tag>
-                </tag>
-            </tags>
             <screens>
                 <screen>
                     <name>Veeam</name>
@@ -836,7 +929,7 @@ and&#13;
                 </mapping>
                 <mapping>
                     <value>3</value>
-                    <newvalue>Inactif</newvalue>
+                    <newvalue>Idle</newvalue>
                 </mapping>
                 <mapping>
                     <value>4</value>
@@ -844,11 +937,11 @@ and&#13;
                 </mapping>
                 <mapping>
                     <value>5</value>
-                    <newvalue>En cours</newvalue>
+                    <newvalue>In progress</newvalue>
                 </mapping>
                 <mapping>
                     <value>6</value>
-                    <newvalue>En attente</newvalue>
+                    <newvalue>On standby</newvalue>
                 </mapping>
             </mappings>
         </value_map>
@@ -862,23 +955,6 @@ and&#13;
                 <mapping>
                     <value>1</value>
                     <newvalue>Running</newvalue>
-                </mapping>
-            </mappings>
-        </value_map>
-        <value_map>
-            <name>vbrtaskresult</name>
-            <mappings>
-                <mapping>
-                    <value>0</value>
-                    <newvalue>Error</newvalue>
-                </mapping>
-                <mapping>
-                    <value>1</value>
-                    <newvalue>Succeeded</newvalue>
-                </mapping>
-                <mapping>
-                    <value>4</value>
-                    <newvalue>Canceled</newvalue>
                 </mapping>
             </mappings>
         </value_map>

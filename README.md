@@ -4,12 +4,11 @@
 
 This template use the VEEAM Backup & Replication PowerShell Cmdlets to discover and manage VEEAM Backup jobs, Veeam BackupSync, Veeam Tape Job, Veeam Endpoint Backup Jobs, All Repositories and Veeam Services.
 
-- Work with Veeam backup & replication V7 to V9.5
-- Work with Zabbix 3.X (english template only for V3.X) & 4.X
-- French & English translation for the Template
+- Work with Veeam backup & replication V7 to V10
+- Work with Zabbix 3.X through 5.X
 
 ### Explanation of how it works:
-The "Result Export Xml Veeam" item sends a powershell command (with `nowait` option) to the host to create an xml file of the result of the `Get-VBRBbackupSession`, `Get-VBRJob`, `Get-VRBBackup` and `Get-VBREPJob` commands that is stored under `C:\Program Files\Zabbix Agent\scripts\TempXmlVeeam\*.xml` (variable `$pathxml`).
+The "Result Export Xml Veeam" item sends a powershell command (with `nowait` option) to the host to create an xml file of the result of the `Get-VBRBbackupSession`, `Get-VBRJob`, `Get-VRBBackup`, `Get-VBRInstalledLicense`, `Get-VBRComputerBackupJob` and `Get-VBREPJob` commands that is stored under `C:\Program Files\Zabbix Agent\scripts\TempXmlVeeam\*.xml` (variable `$pathxml`).
 Then, each request imports the xml to retrieve the information.
 
 Why? Because the execution of this command can take between 30 seconds and more than 3 minutes (depending on the history and the number of tasks) and I end up with several scripts running for a certain time and the execution is in timeout.
@@ -20,6 +19,7 @@ Why? Because the execution of this command can take between 30 seconds and more 
   - Number of tasks jobs
   - Number of running jobs
   - Result Export Xml Veeam
+  - License days Remaining
 
 ## Discovery Jobs
 
@@ -63,6 +63,9 @@ Why? Because the execution of this command can take between 30 seconds and more 
 ### 6. Veeam Repository:
   - Remaining space in repository for each repo
   - Total space in repository for each repo
+ 
+### 7. VEEAM Windows Agent Jobs
+  - Number of days with consecutive failures 
 
 ## Discovery Jobs By VMs
 
@@ -110,7 +113,7 @@ Why? Because the execution of this command can take between 30 seconds and more 
 
 ### Discovery Veeam Services
 - [AVERAGE] => Veeam Service is down for each services
-
+- 
 
 ## Setup
 
@@ -125,17 +128,20 @@ Why? Because the execution of this command can take between 30 seconds and more 
     Timeout=(to adjust if items arrive in timeout and don't forget to ajust the zabbixserver timeout)
     UserParameter=vbr[*],powershell -NoProfile -ExecutionPolicy Bypass -File "C:\Program Files\Zabbix Agent\scripts\zabbix_vbr_job.ps1" "$1" "$2" "$3"
     ```
-4. ** In Zabbix : Administration, General, Regular Expression:
+4. Create Scheduled task to run the export XML command from the script and run it to create XML's
+5. ** In Zabbix : Administration, General, Regular Expression:
 
     1. Add a new regular expression:
         + Name: `Veeam`
         + Expression Type: `Result is TRUE`
         + Expression: `Veeam.*`
 
-5. Import TemplateVEEAM-BACKUPtrapper.xml file into Zabbix.
-6. Purge and clean Template OS Windows if is linked to the host (you can relink it after).
-7. Associate "Template VEEAM - Backup and Replication" to the host.
-8. Wait about 1h for discovery, XML file to be generated and first informations retrieves.
+6. Import TemplateVEEAM-BACKUP-eng.xml and ActiveTemplateVEEAM-BACKUP-eng.xml files into Zabbix.
+	1. The `TemplateVEEAM-BACKUP-eng.xml` is used for traditional checks.
+	2. The `ActiveTemplateVEEAM-BACKUP-eng.xml` the same template, but is exclusivly Active checks for monitoring of remote servers from a public Zabbix server.  
+7. Purge and clean Template OS Windows if is linked to the host (you can relink it after).
+8. Associate "Template VEEAM - Backup and Replication" to the host.
+9. Wait about 1h for discovery, XML file to be generated and first informations retrieves.
 
 ! If you use old version (< v3) please Purge and clean "Template VEEAM-BACKUP trapper".
 
